@@ -3,91 +3,155 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Twitch VOD + Chat Replay</title>
+  <title>Twitch VOD + Chat Replay (xqc.wtf style)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://player.twitch.tv/js/embed/v1.js"></script>
   <style>
-    #chat { scrollbar-width: thin; }
-    .message { word-break: break-word; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    body { font-family: 'Inter', system_ui, sans-serif; }
+    #chat { scrollbar-width: thin; scrollbar-color: #9146ff #2a2a2a; }
+    .message { word-break: break-word; line-height: 1.3; }
+    .emote { display: inline-block; height: 28px; vertical-align: middle; margin: -2px 1px; }
   </style>
 </head>
-<body class="bg-zinc-950 text-white">
-  <div class="max-w-7xl mx-auto p-4">
-    <div class="flex flex-col lg:flex-row gap-4 h-screen">
-      <!-- Video -->
+<body class="bg-[#0e0c13] text-white">
+  <div class="max-w-screen-2xl mx-auto">
+    <!-- Header (xqc.wtf style) -->
+    <div class="bg-[#18151f] border-b border-[#9146ff] px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-[#9146ff] rounded-full flex items-center justify-center text-xl">📺</div>
+        <h1 class="text-2xl font-bold tracking-tight">VOD + Chat Replay</h1>
+        <span class="text-sm text-zinc-400">any Twitch VOD • mobile friendly</span>
+      </div>
+      <a href="https://xqc.wtf" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1">
+        Inspired by xqc.wtf →
+      </a>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-4 p-4 min-h-[calc(100vh-73px)]">
+      <!-- Video + Controls -->
       <div class="flex-1 flex flex-col">
-        <div class="mb-4">
-          <input id="vodInput" type="text" placeholder="Paste Twitch VOD URL or ID (e.g. https://www.twitch.tv/videos/1234567890)" 
-                 class="w-full bg-zinc-900 border border-zinc-700 rounded px-4 py-3 text-white focus:outline-none focus:border-purple-500">
+        <div class="mb-3 flex gap-2">
+          <input id="vodInput" type="text" placeholder="Paste VOD URL or ID (e.g. 1234567890 or full twitch.tv/videos/...)" 
+                 class="flex-1 bg-[#18151f] border border-zinc-700 focus:border-[#9146ff] rounded-xl px-5 py-3 text-white outline-none text-base">
           <button onclick="loadVod()" 
-                  class="mt-3 w-full bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded font-semibold">Load VOD + Chat</button>
+                  class="bg-[#9146ff] hover:bg-[#a46bff] px-8 py-3 rounded-xl font-semibold text-base transition-colors">
+            Load
+          </button>
         </div>
-        <div id="twitch-embed" class="flex-1 bg-black rounded-xl overflow-hidden"></div>
+
+        <!-- Player -->
+        <div id="twitch-embed" class="flex-1 bg-black rounded-2xl overflow-hidden shadow-2xl"></div>
+
+        <!-- Status -->
+        <div class="mt-3 flex items-center justify-between text-sm">
+          <div id="playerStatus" class="text-green-400 flex items-center gap-2">
+            <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+            Player ready
+          </div>
+          <div id="chatStatus" class="flex items-center gap-2 text-yellow-400"></div>
+        </div>
       </div>
 
-      <!-- Chat -->
-      <div class="flex-1 lg:w-96 flex flex-col bg-zinc-900 rounded-xl overflow-hidden border border-zinc-700">
-        <div class="bg-zinc-800 px-4 py-3 font-semibold border-b border-zinc-700 flex items-center justify-between">
-          <span>Chat Replay</span>
-          <span id="status" class="text-xs text-green-400">Ready</span>
+      <!-- Chat (exactly like xqc.wtf layout) -->
+      <div class="lg:w-96 flex flex-col bg-[#18151f] border border-zinc-700 rounded-2xl overflow-hidden h-[calc(100vh-120px)] lg:h-auto">
+        <div class="bg-[#232127] px-4 py-3 font-semibold border-b border-zinc-700 flex items-center justify-between">
+          <span class="flex items-center gap-2">
+            <span class="text-[#9146ff]">●</span>
+            LIVE CHAT REPLAY
+          </span>
+          <button onclick="retryChat()" id="retryBtn"
+                  class="hidden text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-lg">Retry Chat</button>
         </div>
-        <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm"></div>
+        <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm bg-[#18151f]"></div>
       </div>
     </div>
   </div>
 
   <script>
-    let player, messages = [], currentVodId = null;
-    const CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"; // Public Twitch client ID (works for chat fetching)
+    let player = null;
+    let messages = [];
+    let currentVodId = null;
+    const CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
 
-    async function fetchAllChat(vodId) {
-      let allMessages = [];
+    // Current known hash (as of April 2026 this is still the one used in most public tools; it may rotate again)
+    const QUERY_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a";
+
+    async function fetchChat(vodId) {
+      let all = [];
       let cursor = null;
       let offset = 0;
 
       while (true) {
-        const body = cursor 
-          ? [{ operationName: "VideoCommentsByOffsetOrCursor", variables: { videoID: vodId, cursor }, extensions: { persistedQuery: { version: 1, sha256Hash: "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a" } } }]
-          : [{ operationName: "VideoCommentsByOffsetOrCursor", variables: { videoID: vodId, contentOffsetSeconds: offset }, extensions: { persistedQuery: { version: 1, sha256Hash: "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a" } } }];
+        const variables = cursor 
+          ? { videoID: vodId, cursor } 
+          : { videoID: vodId, contentOffsetSeconds: offset };
+
+        const body = [{
+          operationName: "VideoCommentsByOffsetOrCursor",
+          variables,
+          extensions: { persistedQuery: { version: 1, sha256Hash: QUERY_HASH } }
+        }];
 
         const res = await fetch("https://gql.twitch.tv/gql", {
           method: "POST",
-          headers: { "Client-ID": CLIENT_ID, "Content-Type": "application/json" },
+          headers: { 
+            "Client-ID": CLIENT_ID,
+            "Content-Type": "application/json"
+          },
           body: JSON.stringify(body)
         });
-        const data = await res.json();
 
-        const comments = data[0].data.video.comments.edges;
-        comments.forEach(edge => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        const videoData = data[0]?.data?.video;
+
+        if (!videoData) {
+          console.error("Twitch response:", data);
+          throw new Error("Unexpected Twitch response (API changed)");
+        }
+
+        const edges = videoData.comments.edges;
+        edges.forEach(edge => {
           const node = edge.node;
-          const offsetSec = node.contentOffsetSeconds;
-          let html = `<strong class="text-purple-400">${node.commenter.displayName}:</strong> `;
-          
+          let html = `<span class="text-[#9146ff] font-semibold">${node.commenter.displayName}</span> `;
+
+          // Badges
+          if (node.message.userBadges?.length) {
+            node.message.userBadges.forEach(badge => {
+              const url = `https://static-cdn.jtvnw.net/badges/v1/${badge.setID}/1`;
+              html = `<img src="${url}" class="inline h-4 w-4 align-middle mr-1" alt="">` + html;
+            });
+          }
+
+          // Fragments (text + emotes)
           node.message.fragments.forEach(f => {
             if (f.text) html += f.text;
             else if (f.emote) {
-              html += `<img src="https://static-cdn.jtvnw.net/emoticons/v2/${f.emote.id}/default/dark/1.0" class="inline h-5 align-middle" alt="">`;
+              html += `<img src="https://static-cdn.jtvnw.net/emoticons/v2/${f.emote.id}/default/dark/1.0" class="emote" alt="">`;
             }
           });
-          allMessages.push({ offset: offsetSec, html });
+
+          all.push({ offset: node.contentOffsetSeconds, html });
         });
 
-        if (!data[0].data.video.comments.pageInfo.hasNextPage) break;
-        cursor = comments[comments.length - 1].cursor;
-        offset = 0; // cursor takes over
+        if (!videoData.comments.pageInfo.hasNextPage) break;
+        cursor = edges[edges.length - 1].cursor;
+        offset = 0;
       }
-      return allMessages.sort((a, b) => a.offset - b.offset);
+      return all.sort((a, b) => a.offset - b.offset);
     }
 
-    function renderChat(currentTime) {
+    function renderChat(time) {
       const chatDiv = document.getElementById("chat");
       chatDiv.innerHTML = "";
-      const windowStart = Math.max(0, currentTime - 30); // show last ~30s of chat
+      const start = Math.max(0, time - 45); // wider window for better feel
 
       messages.forEach(msg => {
-        if (msg.offset >= windowStart && msg.offset <= currentTime + 2) {
+        if (msg.offset >= start && msg.offset <= time + 5) {
           const div = document.createElement("div");
-          div.className = "message";
+          div.className = "message flex gap-2";
           div.innerHTML = msg.html;
           chatDiv.appendChild(div);
         }
@@ -97,60 +161,71 @@
 
     async function loadVod() {
       const input = document.getElementById("vodInput").value.trim();
-      let vodId = input;
-      if (input.includes("twitch.tv/videos/")) {
-        vodId = input.split("/videos/")[1].split("?")[0].split("&")[0];
-      }
-      if (!vodId || isNaN(vodId)) return alert("Invalid VOD ID or URL");
+      let vodId = input.match(/(\d+)/)?.[0] || input;
+      if (!vodId) return alert("Please paste a valid Twitch VOD URL or ID");
 
       currentVodId = vodId;
-      document.getElementById("status").textContent = "Fetching chat...";
-      document.getElementById("status").className = "text-xs text-yellow-400";
 
-      // Clear previous
+      // Always load player first (xqc.wtf style)
       if (player) player.destroy();
-      messages = [];
-      document.getElementById("chat").innerHTML = "<div class='text-center text-zinc-500 py-8'>Loading chat replay...</div>";
-
-      // Fetch chat
-      try {
-        messages = await fetchAllChat(vodId);
-      } catch (e) {
-        console.error(e);
-        document.getElementById("status").innerHTML = "⚠️ Chat fetch failed (API may have changed)";
-        return;
-      }
-
-      // Embed player
-      const embedContainer = document.getElementById("twitch-embed");
+      const embed = document.getElementById("twitch-embed");
       player = new Twitch.Player("twitch-embed", {
         video: vodId,
         width: "100%",
         height: "100%",
         parent: window.location.hostname,
         autoplay: true,
-        muted: false
+        muted: false,
+        allowfullscreen: true
       });
 
-      // Sync chat
-      let lastTime = 0;
+      document.getElementById("playerStatus").innerHTML = `✅ <span class="text-green-400">VOD ${vodId} loaded</span>`;
+
+      // Chat
+      const statusEl = document.getElementById("chatStatus");
+      statusEl.innerHTML = `🔄 Fetching chat...`;
+      document.getElementById("retryBtn").classList.add("hidden");
+
+      messages = [];
+      document.getElementById("chat").innerHTML = `<div class="text-center text-zinc-400 py-12">Downloading full chat replay...<br><span class="text-xs">(can take 5-30s for long VODs)</span></div>`;
+
+      try {
+        messages = await fetchChat(vodId);
+        statusEl.innerHTML = `✅ <span class="text-green-400">${messages.length.toLocaleString()} messages loaded</span>`;
+      } catch (err) {
+        console.error("Chat fetch error:", err);
+        statusEl.innerHTML = `❌ Chat unavailable — Twitch API changed`;
+        document.getElementById("retryBtn").classList.remove("hidden");
+        document.getElementById("chat").innerHTML = `<div class="text-red-400 text-center py-8">Twitch changed their internal API.<br>Open browser console (F12) for details.<br><br>xqc.wtf works because they pre-cache chats.</div>`;
+      }
+
+      // Sync loop
+      let last = 0;
       setInterval(() => {
         if (!player) return;
-        const time = player.getCurrentTime();
-        if (Math.abs(time - lastTime) > 0.5) {
-          renderChat(time);
-          lastTime = time;
+        const t = player.getCurrentTime();
+        if (Math.abs(t - last) > 0.3) {
+          renderChat(t);
+          last = t;
         }
-      }, 500);
-
-      document.getElementById("status").textContent = `✅ ${messages.length} messages loaded`;
-      document.getElementById("status").className = "text-xs text-green-400";
+      }, 400);
     }
 
-    // Allow Enter key
-    document.getElementById("vodInput").addEventListener("keypress", e => {
-      if (e.key === "Enter") loadVod();
-    });
+    function retryChat() {
+      if (!currentVodId) return;
+      document.getElementById("chatStatus").innerHTML = `🔄 Retrying...`;
+      fetchChat(currentVodId).then(msgs => {
+        messages = msgs;
+        document.getElementById("chatStatus").innerHTML = `✅ ${msgs.length.toLocaleString()} messages`;
+        const time = player ? player.getCurrentTime() : 0;
+        renderChat(time);
+      }).catch(() => {
+        document.getElementById("chatStatus").innerHTML = `❌ Still failed`;
+      });
+    }
+
+    // Enter key support
+    document.getElementById("vodInput").addEventListener("keypress", e => { if (e.key === "Enter") loadVod(); });
   </script>
 </body>
 </html>
