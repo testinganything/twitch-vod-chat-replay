@@ -10,58 +10,40 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
     body { font-family: 'Inter', system_ui, sans-serif; }
     #chat { scrollbar-width: thin; scrollbar-color: #9146ff #2a2a2a; }
-    .message { word-break: break-word; line-height: 1.3; }
-    .emote { display: inline-block; height: 28px; vertical-align: middle; margin: -2px 1px; }
+    .message { word-break: break-word; line-height: 1.35; }
+    .emote { display: inline-block; height: 28px; vertical-align: middle; margin: -3px 2px; }
   </style>
 </head>
 <body class="bg-[#0e0c13] text-white">
   <div class="max-w-screen-2xl mx-auto">
-    <!-- Header (xqc.wtf style) -->
+    <!-- Header -->
     <div class="bg-[#18151f] border-b border-[#9146ff] px-6 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 bg-[#9146ff] rounded-full flex items-center justify-center text-xl">📺</div>
+        <div class="w-8 h-8 bg-[#9146ff] rounded-full flex items-center justify-center text-2xl">📺</div>
         <h1 class="text-2xl font-bold tracking-tight">VOD + Chat Replay</h1>
-        <span class="text-sm text-zinc-400">any Twitch VOD • mobile friendly</span>
+        <span class="text-sm text-zinc-400">any VOD • xqc.wtf style • mobile ready</span>
       </div>
-      <a href="https://xqc.wtf" target="_blank" class="text-purple-400 hover:text-purple-300 text-sm flex items-center gap-1">
-        Inspired by xqc.wtf →
-      </a>
+      <a href="https://xqc.wtf" target="_blank" class="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-sm">xqc.wtf →</a>
     </div>
 
     <div class="flex flex-col lg:flex-row gap-4 p-4 min-h-[calc(100vh-73px)]">
-      <!-- Video + Controls -->
+      <!-- Video -->
       <div class="flex-1 flex flex-col">
         <div class="mb-3 flex gap-2">
-          <input id="vodInput" type="text" placeholder="Paste VOD URL or ID (e.g. 1234567890 or full twitch.tv/videos/...)" 
-                 class="flex-1 bg-[#18151f] border border-zinc-700 focus:border-[#9146ff] rounded-xl px-5 py-3 text-white outline-none text-base">
+          <input id="vodInput" type="text" placeholder="Paste Twitch VOD URL or ID (e.g. 1234567890)" 
+                 class="flex-1 bg-[#18151f] border border-zinc-700 focus:border-[#9146ff] rounded-2xl px-5 py-3 outline-none text-base">
           <button onclick="loadVod()" 
-                  class="bg-[#9146ff] hover:bg-[#a46bff] px-8 py-3 rounded-xl font-semibold text-base transition-colors">
-            Load
-          </button>
+                  class="bg-[#9146ff] hover:bg-[#a46bff] px-10 py-3 rounded-2xl font-semibold transition-colors">Load</button>
         </div>
-
-        <!-- Player -->
-        <div id="twitch-embed" class="flex-1 bg-black rounded-2xl overflow-hidden shadow-2xl"></div>
-
-        <!-- Status -->
-        <div class="mt-3 flex items-center justify-between text-sm">
-          <div id="playerStatus" class="text-green-400 flex items-center gap-2">
-            <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-            Player ready
-          </div>
-          <div id="chatStatus" class="flex items-center gap-2 text-yellow-400"></div>
-        </div>
+        <div id="twitch-embed" class="flex-1 bg-black rounded-3xl overflow-hidden shadow-2xl"></div>
+        <div id="playerStatus" class="mt-3 text-green-400 text-sm flex items-center gap-2"></div>
       </div>
 
-      <!-- Chat (exactly like xqc.wtf layout) -->
-      <div class="lg:w-96 flex flex-col bg-[#18151f] border border-zinc-700 rounded-2xl overflow-hidden h-[calc(100vh-120px)] lg:h-auto">
-        <div class="bg-[#232127] px-4 py-3 font-semibold border-b border-zinc-700 flex items-center justify-between">
-          <span class="flex items-center gap-2">
-            <span class="text-[#9146ff]">●</span>
-            LIVE CHAT REPLAY
-          </span>
-          <button onclick="retryChat()" id="retryBtn"
-                  class="hidden text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-lg">Retry Chat</button>
+      <!-- Chat -->
+      <div class="lg:w-96 flex flex-col bg-[#18151f] border border-zinc-700 rounded-3xl overflow-hidden h-[calc(100vh-140px)] lg:h-auto">
+        <div class="bg-[#232127] px-4 py-3 font-semibold border-b flex items-center justify-between">
+          <span class="flex items-center gap-2"><span class="text-[#9146ff]">●</span> CHAT REPLAY</span>
+          <button onclick="retryChat()" id="retryBtn" class="hidden text-xs px-4 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-xl">Retry</button>
         </div>
         <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm bg-[#18151f]"></div>
       </div>
@@ -73,9 +55,6 @@
     let messages = [];
     let currentVodId = null;
     const CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
-
-    // Current known hash (as of April 2026 this is still the one used in most public tools; it may rotate again)
-    const QUERY_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a";
 
     async function fetchChat(vodId) {
       let all = [];
@@ -90,27 +69,30 @@
         const body = [{
           operationName: "VideoCommentsByOffsetOrCursor",
           variables,
-          extensions: { persistedQuery: { version: 1, sha256Hash: QUERY_HASH } }
+          extensions: { persistedQuery: { version: 1, sha256Hash: "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a" } }
         }];
 
         const res = await fetch("https://gql.twitch.tv/gql", {
           method: "POST",
-          headers: { 
+          headers: {
             "Client-ID": CLIENT_ID,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+            "Origin": "https://www.twitch.tv",
+            "Referer": "https://www.twitch.tv/"
           },
           body: JSON.stringify(body)
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
         const data = await res.json();
-        const videoData = data[0]?.data?.video;
 
-        if (!videoData) {
-          console.error("Twitch response:", data);
-          throw new Error("Unexpected Twitch response (API changed)");
+        if (data[0]?.errors?.length) {
+          console.error("Twitch GQL error:", data[0].errors);
+          throw new Error(data[0].errors[0].message || "Unknown GQL error");
         }
+
+        const videoData = data[0]?.data?.video;
+        if (!videoData?.comments) throw new Error("No comments data (API changed)");
 
         const edges = videoData.comments.edges;
         edges.forEach(edge => {
@@ -119,13 +101,12 @@
 
           // Badges
           if (node.message.userBadges?.length) {
-            node.message.userBadges.forEach(badge => {
-              const url = `https://static-cdn.jtvnw.net/badges/v1/${badge.setID}/1`;
-              html = `<img src="${url}" class="inline h-4 w-4 align-middle mr-1" alt="">` + html;
+            node.message.userBadges.forEach(b => {
+              html = `<img src="https://static-cdn.jtvnw.net/badges/v1/${b.setID}/1" class="inline h-4 w-4 align-middle mr-1" alt="">` + html;
             });
           }
 
-          // Fragments (text + emotes)
+          // Message fragments (text + emotes)
           node.message.fragments.forEach(f => {
             if (f.text) html += f.text;
             else if (f.emote) {
@@ -146,12 +127,11 @@
     function renderChat(time) {
       const chatDiv = document.getElementById("chat");
       chatDiv.innerHTML = "";
-      const start = Math.max(0, time - 45); // wider window for better feel
-
+      const start = Math.max(0, time - 60);
       messages.forEach(msg => {
-        if (msg.offset >= start && msg.offset <= time + 5) {
+        if (msg.offset >= start && msg.offset <= time + 10) {
           const div = document.createElement("div");
-          div.className = "message flex gap-2";
+          div.className = "message";
           div.innerHTML = msg.html;
           chatDiv.appendChild(div);
         }
@@ -161,70 +141,68 @@
 
     async function loadVod() {
       const input = document.getElementById("vodInput").value.trim();
-      let vodId = input.match(/(\d+)/)?.[0] || input;
-      if (!vodId) return alert("Please paste a valid Twitch VOD URL or ID");
+      let vodId = input.match(/\d+/)?.[0] || input;
+      if (!vodId) return alert("Invalid VOD");
 
       currentVodId = vodId;
 
-      // Always load player first (xqc.wtf style)
+      // Player first (xqc.wtf style)
       if (player) player.destroy();
-      const embed = document.getElementById("twitch-embed");
       player = new Twitch.Player("twitch-embed", {
         video: vodId,
         width: "100%",
         height: "100%",
         parent: window.location.hostname,
         autoplay: true,
-        muted: false,
-        allowfullscreen: true
+        muted: false
       });
-
-      document.getElementById("playerStatus").innerHTML = `✅ <span class="text-green-400">VOD ${vodId} loaded</span>`;
+      document.getElementById("playerStatus").innerHTML = `✅ VOD <span class="font-mono">${vodId}</span> loaded`;
 
       // Chat
-      const statusEl = document.getElementById("chatStatus");
-      statusEl.innerHTML = `🔄 Fetching chat...`;
+      const statusEl = document.getElementById("chat");
+      statusEl.innerHTML = `<div class="text-center py-12 text-zinc-400">Fetching full chat replay...<br><span class="text-xs">This can take 5-40 seconds</span></div>`;
       document.getElementById("retryBtn").classList.add("hidden");
 
       messages = [];
-      document.getElementById("chat").innerHTML = `<div class="text-center text-zinc-400 py-12">Downloading full chat replay...<br><span class="text-xs">(can take 5-30s for long VODs)</span></div>`;
-
       try {
         messages = await fetchChat(vodId);
-        statusEl.innerHTML = `✅ <span class="text-green-400">${messages.length.toLocaleString()} messages loaded</span>`;
+        statusEl.innerHTML = `<div class="text-green-400 text-center py-8">✅ ${messages.length.toLocaleString()} messages loaded</div>`;
       } catch (err) {
-        console.error("Chat fetch error:", err);
-        statusEl.innerHTML = `❌ Chat unavailable — Twitch API changed`;
+        console.error("Full fetch error:", err);
+        statusEl.innerHTML = `
+          <div class="text-red-400 text-center py-8 px-4">
+            ❌ Chat fetch failed<br>
+            <span class="text-xs block mt-3">${err.message}</span>
+            <button onclick="copyError()" class="mt-4 text-xs px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl">Copy exact error to clipboard</button>
+            <p class="text-[10px] text-zinc-500 mt-6">Twitch added integrity checks in April 2026 — this is why simple static sites are breaking.</p>
+          </div>`;
         document.getElementById("retryBtn").classList.remove("hidden");
-        document.getElementById("chat").innerHTML = `<div class="text-red-400 text-center py-8">Twitch changed their internal API.<br>Open browser console (F12) for details.<br><br>xqc.wtf works because they pre-cache chats.</div>`;
+        return;
       }
 
-      // Sync loop
+      // Sync
       let last = 0;
       setInterval(() => {
         if (!player) return;
         const t = player.getCurrentTime();
-        if (Math.abs(t - last) > 0.3) {
+        if (Math.abs(t - last) > 0.4) {
           renderChat(t);
           last = t;
         }
-      }, 400);
+      }, 350);
     }
 
     function retryChat() {
       if (!currentVodId) return;
-      document.getElementById("chatStatus").innerHTML = `🔄 Retrying...`;
-      fetchChat(currentVodId).then(msgs => {
-        messages = msgs;
-        document.getElementById("chatStatus").innerHTML = `✅ ${msgs.length.toLocaleString()} messages`;
-        const time = player ? player.getCurrentTime() : 0;
-        renderChat(time);
-      }).catch(() => {
-        document.getElementById("chatStatus").innerHTML = `❌ Still failed`;
-      });
+      document.getElementById("chat").innerHTML = `<div class="text-center py-12 text-yellow-400">Retrying chat fetch...</div>`;
+      loadVod(); // re-run the whole thing
     }
 
-    // Enter key support
+    function copyError() {
+      const errText = document.querySelector("#chat .text-red-400")?.innerText || "No error";
+      navigator.clipboard.writeText(errText).then(() => alert("Error copied to clipboard — paste it here if you want me to debug further"));
+    }
+
     document.getElementById("vodInput").addEventListener("keypress", e => { if (e.key === "Enter") loadVod(); });
   </script>
 </body>
