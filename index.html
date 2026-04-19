@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twitch VOD + Chat Replay</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://player.twitch.tv/js/embed/v1.js"></script>
+  <style>
+    #chat { scrollbar-width: thin; }
+    .message { word-break: break-word; }
+  </style>
+</head>
+<body class="bg-zinc-950 text-white">
+  <div class="max-w-7xl mx-auto p-4">
+    <div class="flex flex-col lg:flex-row gap-4 h-screen">
+      <!-- Video -->
+      <div class="flex-1 flex flex-col">
+        <div class="mb-4">
+          <input id="vodInput" type="text" placeholder="Paste Twitch VOD URL or ID (e.g. https://www.twitch.tv/videos/1234567890)" 
+                 class="w-full bg-zinc-900 border border-zinc-700 rounded px-4 py-3 text-white focus:outline-none focus:border-purple-500">
+          <button onclick="loadVod()" 
+                  class="mt-3 w-full bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded font-semibold">Load VOD + Chat</button>
+        </div>
+        <div id="twitch-embed" class="flex-1 bg-black rounded-xl overflow-hidden"></div>
+      </div>
+
+      <!-- Chat -->
+      <div class="flex-1 lg:w-96 flex flex-col bg-zinc-900 rounded-xl overflow-hidden border border-zinc-700">
+        <div class="bg-zinc-800 px-4 py-3 font-semibold border-b border-zinc-700 flex items-center justify-between">
+          <span>Chat Replay</span>
+          <span id="status" class="text-xs text-green-400">Ready</span>
+        </div>
+        <div id="chat" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let player, messages = [], currentVodId = null;
+    const CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"; // Public Twitch client ID (works for chat fetching)
+
+    async function fetchAllChat(vodId) {
+      let allMessages = [];
+      let cursor = null;
+      let offset = 0;
+
+      while (true) {
+        const body = cursor 
+          ? [{ operationName: "VideoCommentsByOffsetOrCursor", variables: { videoID: vodId, cursor }, extensions: { persistedQuery: { version: 1, sha256Hash: "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a" } } }]
+          : [{ operationName: "VideoCommentsByOffsetOrCursor", variables: { videoID: vodId, contentOffsetSeconds: offset }, extensions: { persistedQuery: { version: 1, sha256Hash: "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a" } } }];
+
+        const res = await fetch("https://gql.twitch.tv/gql", {
+          method: "POST",
+          headers: { "Client-ID": CLIENT_ID, "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+
+        const comments = data[0].data.video.comments.edges;
+        comments.forEach(edge => {
+          const node = edge.node;
+          const offsetSec = node.contentOffsetSeconds;
+          let html = `<strong class="text-purple-400">${node.commenter.displayName}:</strong> `;
+          
+          node.message.fragments.forEach(f => {
+            if (f.text) html += f.text;
+            else if (f.emote) {
+              html += `<img src="https://static-cdn.jtvnw.net/emoticons/v2/${f.emote.id}/default/dark/1.0" class="inline h-5 align-middle" alt="">`;
+            }
+          });
+          allMessages.push({ offset: offsetSec, html });
+        });
+
+        if (!data[0].data.video.comments.pageInfo.hasNextPage) break;
+        cursor = comments[comments.length - 1].cursor;
+        offset = 0; // cursor takes over
+      }
+      return allMessages.sort((a, b) => a.offset - b.offset);
+    }
+
+    function renderChat(currentTime) {
+      const chatDiv = document.getElementById("chat");
+      chatDiv.innerHTML = "";
+      const windowStart = Math.max(0, currentTime - 30); // show last ~30s of chat
+
+      messages.forEach(msg => {
+        if (msg.offset >= windowStart && msg.offset <= currentTime + 2) {
+          const div = document.createElement("div");
+          div.className = "message";
+          div.innerHTML = msg.html;
+          chatDiv.appendChild(div);
+        }
+      });
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    async function loadVod() {
+      const input = document.getElementById("vodInput").value.trim();
+      let vodId = input;
+      if (input.includes("twitch.tv/videos/")) {
+        vodId = input.split("/videos/")[1].split("?")[0].split("&")[0];
+      }
+      if (!vodId || isNaN(vodId)) return alert("Invalid VOD ID or URL");
+
+      currentVodId = vodId;
+      document.getElementById("status").textContent = "Fetching chat...";
+      document.getElementById("status").className = "text-xs text-yellow-400";
+
+      // Clear previous
+      if (player) player.destroy();
+      messages = [];
+      document.getElementById("chat").innerHTML = "<div class='text-center text-zinc-500 py-8'>Loading chat replay...</div>";
+
+      // Fetch chat
+      try {
+        messages = await fetchAllChat(vodId);
+      } catch (e) {
+        console.error(e);
+        document.getElementById("status").innerHTML = "⚠️ Chat fetch failed (API may have changed)";
+        return;
+      }
+
+      // Embed player
+      const embedContainer = document.getElementById("twitch-embed");
+      player = new Twitch.Player("twitch-embed", {
+        video: vodId,
+        width: "100%",
+        height: "100%",
+        parent: window.location.hostname,
+        autoplay: true,
+        muted: false
+      });
+
+      // Sync chat
+      let lastTime = 0;
+      setInterval(() => {
+        if (!player) return;
+        const time = player.getCurrentTime();
+        if (Math.abs(time - lastTime) > 0.5) {
+          renderChat(time);
+          lastTime = time;
+        }
+      }, 500);
+
+      document.getElementById("status").textContent = `✅ ${messages.length} messages loaded`;
+      document.getElementById("status").className = "text-xs text-green-400";
+    }
+
+    // Allow Enter key
+    document.getElementById("vodInput").addEventListener("keypress", e => {
+      if (e.key === "Enter") loadVod();
+    });
+  </script>
+</body>
+</html>
